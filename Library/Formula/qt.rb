@@ -8,7 +8,7 @@ class Qt <Formula
 
   def patches
     # To fix http://bugreports.qt.nokia.com/browse/QTBUG-13623. Patch sent upstream.
-    "http://qt.gitorious.org/~mikemcquaid/qt/mikemcquaid-qt/commit/ca2e8b6dc176576f7217f4b7209994eddad1a358.patch"
+    "http://qt.gitorious.org/qt/qt/commit/9f18a1ad5ce32dd397642a4c03fa1fcb21fb9456.patch"
   end
 
   def options
@@ -34,7 +34,7 @@ class Qt <Formula
             "-confirm-license", "-opensource",
             "-fast"]
 
-    # See: http://github.com/mxcl/homebrew/issues/issue/744
+    # See: https://github.com/mxcl/homebrew/issues/issue/744
     args << "-system-sqlite" if MACOS_VERSION <= 10.5
     args << "-plugin-sql-mysql" if (HOMEBREW_CELLAR+"mysql").directory?
 
@@ -85,7 +85,7 @@ class Qt <Formula
 
     # Some config scripts will only find Qt in a "Frameworks" folder
     # VirtualBox is an example of where this is needed
-    # See: http://github.com/mxcl/homebrew/issues/issue/745
+    # See: https://github.com/mxcl/homebrew/issues/issue/745
     cd prefix do
       ln_s lib, "Frameworks"
     end
