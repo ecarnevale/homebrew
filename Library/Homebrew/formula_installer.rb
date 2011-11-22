@@ -2,6 +2,7 @@ require 'exceptions'
 require 'formula'
 require 'keg'
 require 'set'
+require 'tab'
 
 class FormulaInstaller
   attr :f
@@ -66,7 +67,6 @@ class FormulaInstaller
       ohai 'Caveats', f.keg_only_text
       @show_summary_heading = true
     else
-      check_PATH
       check_manpages
       check_infopages
       check_jars
@@ -77,7 +77,10 @@ class FormulaInstaller
   def finish
     ohai 'Finishing up' if ARGV.verbose?
 
-    link unless f.keg_only?
+    unless f.keg_only?
+      link
+      check_PATH
+    end
     fix_install_names
 
     ohai "Summary" if ARGV.verbose? or show_summary_heading
@@ -102,6 +105,7 @@ class FormulaInstaller
     # I'm guessing this is not a good way to do this, but I'm no UNIX guru
     ENV['HOMEBREW_ERROR_PIPE'] = write.to_i.to_s
 
+    args = filtered_args
     fork do
       begin
         read.close
@@ -111,7 +115,7 @@ class FormulaInstaller
              '-rbuild',
              '--',
              f.path,
-             *ARGV.options_only
+             *args.options_only
       rescue Exception => e
         Marshal.dump(e, write)
         write.close
@@ -125,6 +129,9 @@ class FormulaInstaller
       data = read.read
       raise Marshal.load(data) unless data.nil? or data.empty?
       raise "Suspicious installation failure" unless $?.success?
+
+      # Write an installation receipt (a Tab) to the prefix
+      Tab.for_install(f, args).write if f.prefix.exist?
     end
   end
 
@@ -231,6 +238,49 @@ class FormulaInstaller
       puts "requires these m4 macros, you'll need to add this path manually."
       @show_summary_heading = true
     end
+  end
+
+  private
+
+  # This method gives us a chance to pre-process command line arguments before the
+  # installer forks and `Formula.install` kicks in.
+  def filtered_args
+    # Returns true if the formula attached to this installer was explicitly
+    # passed on the command line by the user as opposed to being automatically
+    # added to satisfy a dependency.
+    def explicitly_requested?
+      # `ARGV.formulae` will throw an exception if it comes up with an empty
+      # list.
+      #
+      # FIXME:
+      # `ARGV.formulae` probably shouldn't be throwing exceptions, it should be
+      # the caller's responsibility to check `ARGV.formulae.empty?`.
+      return false if ARGV.named.empty?
+      ARGV.formulae.include? f
+    end
+
+    args = ARGV.clone
+
+    # FIXME: Also need to remove `--HEAD`, however there is a problem in that
+    # the properties of formula objects, such as `prefix`, are influenced by
+    # `--HEAD` and get set when the object is created.
+    #
+    # See issue #8668
+    %w[
+      --debug -d
+      --fresh
+      --interactive -i
+      --verbose -v
+    ].each {|flag| args.delete flag} unless explicitly_requested?
+
+    unless args.include? '--fresh'
+      previous_install = Tab.for_formula f
+      args.concat previous_install.used_options
+    end
+
+    args.uniq! # Just in case some dupes slipped by
+
+    return args
   end
 end
 
